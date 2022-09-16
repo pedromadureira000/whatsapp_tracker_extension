@@ -1,0 +1,20 @@
+{
+    "name": "Tintim locals - WhatsApp Tracker",
+    "version": "0.1.0",
+    "description": "Tracks WhatsApp messages and send it to Tintim backend",
+    "permissions": ["storage", "tabs"],
+    "host_permissions": ["https://*.web.whatsapp.com/*"],
+    "icons": {
+      "128":"/assets/img/icon.png"
+    },
+    "background": {
+      "service_worker": "background.js"
+    },
+    "content_scripts": [
+      {
+        "matches": ["https://*.web.whatsapp.com/*"],
+        "js": ["contentScript.js"]
+      }
+    ],
+    "manifest_version": 3
+}
