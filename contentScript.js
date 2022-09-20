@@ -34,22 +34,10 @@
         // 'Content-Type': 'application/x-www-form-urlencoded',
       },
       redirect: 'follow', // manual, *follow, error
-      referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
+      referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, etc ...
       body: JSON.stringify(data) // body data type must match "Content-Type" header
     });
     return response.json(); // parses JSON response into native JavaScript objects
-  }
-
-  const getChatsLastSyncedMessage = async () => {
-    let chats_promise = new Promise(function(resolve, reject){
-      chrome.storage.sync.get('chats_last_synced_msg', function(data){resolve(data.chats_last_synced_msg)})
-    });
-    let chats_last_synced_msg = await chats_promise
-    if (!chats_last_synced_msg){
-      chrome.storage.sync.set({chats_last_synced_msg: {}});
-      return {}
-    }
-    return chats_last_synced_msg
   }
 
   const parseChatElements = async (elements) => {
@@ -83,39 +71,50 @@
     return null
   }
 
-  const syncMessages = async (contact, messages, chats_last_synced_msg) => {
+  const syncMessages = async (contact, messages) => {
+    console.log(">>>>>>> syncMessages")
     let messages_request_body = []
-    let last_msg = chats_last_synced_msg[contact]
+    let chat = await getOrCreateChat(contact)
+    let last_msg = chat.last_synced_msg
     if (last_msg){
       let index_of_last_msg = messages.findIndex(el=>{
         if (el.date == last_msg.date && el.hour == last_msg.hour && el.phone_number == last_msg.phone_number && 
           el.text == last_msg.text){return true}
         else{return false}
       }) 
-      console.log(">>>>>>> index_of_last_msg: ", index_of_last_msg)
       messages_request_body = messages.slice(index_of_last_msg + 1)
     }
     else {
       messages_request_body = messages
     }
-
-    console.log(">>>>>>>>>>>>>>>>>>>>>>>> messages_request_body: ", messages_request_body)
     if (messages_request_body.length > 0){
-      callAPI('https://example.com/answer', messages_request_body, 'POST')
-        .then((data) => {
-          console.log(data); // JSON data parsed by `data.json()` call
-        }).catch(()=>{});
+      try {
+        callAPI('https://example.com/answer', messages_request_body, 'POST')
+          .then((data) => {
+            console.log(data); // JSON data parsed by `data.json()` call
+          }).catch(()=>{});
+      }
+      catch {
+      }
     }
     return 'ok'
   }
 
-  const statusSelected = (ev) => {
-    console.log(">>>>>>> statusSelected: ", ev.target.value)
+  const getSelectorOptions = async () => {
+    let selectorOptions = [{text: "option 1", value: "value 1"}, {text: "option 2", value: "value 2"}, {text: "option 3", value: "value 3"}]
+    return selectorOptions
   }
 
-  const addSelector = () => {
-    let selectorOptions = [{text: "option 1", value: "value 1"}, {text: "option 2", value: "value 2"}, {text: "option 3", value: "value 3"}]
+  const statusSelected = (ev, contact, chat) => {
+    console.log(">>>>>>> statusSelected: ", ev.target.value)
+    console.log(">>>>>>> contact: ", contact)
+    chat.selected_status = ev.target.value
+    updateChat(contact, chat)
+  }
+
+  const addSelector = async (contact, chat) => {
     let selectorExists = document.getElementById("mySelector");
+    let selectorOptions = await getSelectorOptions()
     if (!selectorExists){
       let mySelector = document.createElement("select");
       mySelector.id = "mySelector"
@@ -124,37 +123,50 @@
         let option = document.createElement("option");
         option.value = el.value
         option.text = el.text
+        if (chat.selected_status && chat.selected_status == el.value){option.selected = true}
         mySelector.add(option);
       })
       let wp_header = document.querySelector('[data-testid="conversation-header"]')
       wp_header.querySelector('[class="_1QVfy _3UaCz"]').insertBefore(mySelector, wp_header.querySelector('[data-testid="search-button"]'));
-      mySelector.addEventListener("change", (ev)=> statusSelected(ev));
+      mySelector.addEventListener("change", (ev)=> statusSelected(ev, contact, chat));
     }
   }
 
-  const watchForNewChats = async (chats_last_synced_msg) => {
-    console.log(">>>>>>> watchForNewChats")
+  const getOrCreateChat = async (contact) => {
+    let chat_promise = new Promise(function(resolve, reject){
+      chrome.storage.sync.get(contact, function(data){resolve(data[contact])})
+    });
+    let chat = await chat_promise
+    if (!chat){
+      chat = {last_synced_msg: null, selected_status: null}
+      chrome.storage.sync.set({[contact]: chat});
+    }
+    return chat
+  }
+
+  const updateChat = async (contact, chat) => {
+    chrome.storage.sync.set({[contact]: chat});
+  }
+
+  const watchChatIsOpen = async () => {
     let data = await getChatDataFromDocument()
-    if (data){ // If there is a selected chat
-      addSelector()
+    if (data){
       let {contact, messages} = data
-      console.log(">>>>>>> current contact: ", contact)
-      console.log(">>>>>>> current messages len: ", messages.length)
-      let sync_response = await syncMessages(contact, messages, chats_last_synced_msg)
+      let chat = await getOrCreateChat(contact)
+      addSelector(contact, chat)
+      let sync_response = await syncMessages(contact, messages)
       if (sync_response == 'ok'){
-        chats_last_synced_msg[contact] = messages.slice(-1)[0]
-        chrome.storage.sync.set({chats_last_synced_msg: chats_last_synced_msg});
+        chat.last_synced_msg = messages.slice(-1)[0]
+        updateChat(contact, chat)
       }
     }
-    await sleep(7000)
-    watchForNewChats(chats_last_synced_msg)
+    await sleep(3000)
+    watchChatIsOpen()
   }
 
   const whatsAppInitialScript = async () => {
-    let chats_last_synced_msg = await getChatsLastSyncedMessage()
-    console.log(">>>>>>> chats_last_synced_msg form getChatsLastSyncedMessage function", chats_last_synced_msg)
     await paneSideIsMounted()
-    watchForNewChats(chats_last_synced_msg)
+    watchChatIsOpen()
   }
   whatsAppInitialScript();
 })();
