@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Whatsapp Monitor</title>
+    <link rel="stylesheet" href="src/css/index.css">
+  </head>
+  <body>
+    <span id="author">Created With Love by  <a href="https://chibuikenwa.com">Chibuike </a></span>
+    <div class="container">
+      <h1>Whatsapp Monitor</h1>
+      <section>
+        <select placeholder="Group name" id="group_name" required disabled>
+        <option value="">Loading...</option>
+           
+        </select>
+        <textarea placeholder="Values seperated by comma" id="values" required></textarea> 
+        <br/>
+        <textarea placeholder="Your preferred response(s) seperated by comma" id="response" required></textarea> 
+      </section>
+
+      <section> <div id="validation"></div> </section>
+      <section>
+        <button id="kill">Kill All</button>  
+        <button id="status">Activate</button> 
+        <button id="show">Show Active</button> 
+      </section>
+      <table id="all_active">
+        <thead><th>S/N</th><th>Values</th><th>Response</th><th></th></thead>
+        <tbody>
+        </tbody>    
+      </table>
+    </div>
+    <!-- <script type="text/javascript" src="src/js/index.js"></script> -->
+  </body>
+</html>

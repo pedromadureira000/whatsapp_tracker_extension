@@ -16,5 +16,22 @@
         "js": ["contentScript.js"]
       }
     ],
+    "web_accessible_resources": [
+      {
+        "resources": [
+          "assets/img/icon.png"
+        ],
+        "matches": ["https://*.web.whatsapp.com/*"]
+      }
+    ],
+    "action": {
+      "default_icon": {
+        "16": "assets/img/ext-icon.png",
+        "24": "assets/img/ext-icon.png",
+        "32": "assets/img/ext-icon.png"
+      },
+      "default_title": "Tintim Locals",
+      "default_popup": "popup.html"
+    },
     "manifest_version": 3
 }

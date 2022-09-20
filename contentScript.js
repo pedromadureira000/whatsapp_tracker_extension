@@ -13,7 +13,6 @@
   // }
 
   const sleep = async (ms)=>{ return new Promise(resolve => setTimeout(resolve, ms)); } 
-  console.log(">>>>>>> contentScript.js was executed")
 
   const paneSideIsMounted = async () => {
     let paneSide = document.getElementById("pane-side")
@@ -68,7 +67,6 @@
         messages.push(message)
       }
     })
-    console.log(">>>>>>> messages: ", messages)
     return messages
   }
 
@@ -106,15 +104,39 @@
       callAPI('https://example.com/answer', messages_request_body, 'POST')
         .then((data) => {
           console.log(data); // JSON data parsed by `data.json()` call
-        });
+        }).catch(()=>{});
     }
     return 'ok'
+  }
+
+  const statusSelected = (ev) => {
+    console.log(">>>>>>> statusSelected: ", ev.target.value)
+  }
+
+  const addSelector = () => {
+    let selectorOptions = [{text: "option 1", value: "value 1"}, {text: "option 2", value: "value 2"}, {text: "option 3", value: "value 3"}]
+    let selectorExists = document.getElementById("mySelector");
+    if (!selectorExists){
+      let mySelector = document.createElement("select");
+      mySelector.id = "mySelector"
+      mySelector.style.cssText +=';margin-right:15px;'
+      selectorOptions.forEach(el=>{
+        let option = document.createElement("option");
+        option.value = el.value
+        option.text = el.text
+        mySelector.add(option);
+      })
+      let wp_header = document.querySelector('[data-testid="conversation-header"]')
+      wp_header.querySelector('[class="_1QVfy _3UaCz"]').insertBefore(mySelector, wp_header.querySelector('[data-testid="search-button"]'));
+      mySelector.addEventListener("change", (ev)=> statusSelected(ev));
+    }
   }
 
   const watchForNewChats = async (chats_last_synced_msg) => {
     console.log(">>>>>>> watchForNewChats")
     let data = await getChatDataFromDocument()
     if (data){ // If there is a selected chat
+      addSelector()
       let {contact, messages} = data
       console.log(">>>>>>> current contact: ", contact)
       console.log(">>>>>>> current messages len: ", messages.length)
