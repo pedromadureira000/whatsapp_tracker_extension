@@ -1,7 +1,12 @@
 (() => {
-  // let chats_contact_name = Array.from(document.querySelectorAll('.zoWT4'))  
-  // chats_contact_name[0].innerText == cellphone number <<
-  // chats_last_synced_msg.forEach(el=>{console.log(el.querySelector("div._3OvU8 ").innerText)})  // Print innerText
+  let DEBUG = true
+
+  const sleep = async (ms)=>{ return new Promise(resolve => setTimeout(resolve, ms)); } 
+
+  // const getAllChatsContactName = async () => {
+    // let all_chats_contact_name = Array.from(document.querySelectorAll('.zoWT4'))  
+    // chats_last_synced_msg.forEach(el=>{console.log(el.querySelector("div._3OvU8 ").innerText)})  // Print innerText
+  // }
 
   // const hasNewMessage = async () =>{
     // let stuff = Array.from(document.querySelectorAll('[class="l7jjieqr cfzgl7ar ei5e7seu h0viaqh7 tpmajp1w c0uhu3dl riy2oczp dsh4tgtl sy6s5v3r gz7w46tb lyutrhe2 qfejxiq4 fewfhwl7 ovhn1urg ap18qm3b ikwl5qvt j90th5db aumms1qt"]'))  
@@ -12,7 +17,16 @@
     // else {return false}
   // }
 
-  const sleep = async (ms)=>{ return new Promise(resolve => setTimeout(resolve, ms)); } 
+  const getAuthToken = async () => {
+    let token_promise = new Promise(function(resolve, reject){
+      chrome.storage.sync.get('tintim_auth_token', function(data){resolve(data['tintim_auth_token'])})
+    });
+    let tintim_auth_token = await token_promise
+    if (!tintim_auth_token){
+      tintim_auth_token = undefined
+    }
+    return tintim_auth_token
+  }
 
   const paneSideIsMounted = async () => {
     let paneSide = document.getElementById("pane-side")
@@ -22,22 +36,47 @@
       await sleep(5000);
     }
   }
-  
+ 
   async function callAPI(url = '', data = {}, method='GET') {
-    const response = await fetch(url, {
-      method: method,
-      mode: 'cors', // no-cors, *cors, same-origin
-      cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
-      credentials: 'same-origin', // include, *same-origin, omit
-      headers: {
-        'Content-Type': 'application/json'
-        // 'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      redirect: 'follow', // manual, *follow, error
-      referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, etc ...
-      body: JSON.stringify(data) // body data type must match "Content-Type" header
-    });
-    return response.json(); // parses JSON response into native JavaScript objects
+    let auth_token = await getAuthToken()
+    let response = null
+    if (DEBUG){
+      if (url == 'http://syncMessages.test' && auth_token == 'allowed_token'){
+        return 'Messages synced with success'
+      }
+      else if (url == 'http://getSelectorOptions.test' && auth_token == 'allowed_token'){
+        let data = [{text: "option 1", value: "value 1"}, {text: "option 2", value: "value 2"}, {text: "option 3", value: "value 3"}]
+        return {data: data}
+      }
+      else if (url == 'http://userIsAuthenticated.test' && auth_token == 'allowed_token'){
+        return {data: true}
+      }
+      else { return undefined }
+    }
+    else{
+      response = await fetch(url, {
+        method: method,
+        mode: 'cors', // no-cors, *cors, same-origin
+        cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+        credentials: 'same-origin', // include, *same-origin, omit
+        headers: {
+          'Content-Type': 'application/json' //'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        redirect: 'follow', // manual, *follow, error
+        referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, etc ...
+        body: JSON.stringify(data) // body data type must match "Content-Type" header
+      });
+      return response.json(); // parses JSON response into native JavaScript objects
+    }
+  }
+
+  const userIsAuthenticated = async () => {
+    let auth_token = await getAuthToken()
+    if (!auth_token){ return false }
+
+    let response = await callAPI('http://userIsAuthenticated.test')
+    if (response?.data == true){return true}
+    else {return false}
   }
 
   const parseChatElements = async (elements) => {
@@ -72,7 +111,6 @@
   }
 
   const syncMessages = async (contact, messages) => {
-    console.log(">>>>>>> syncMessages")
     let messages_request_body = []
     let chat = await getOrCreateChat(contact)
     let last_msg = chat.last_synced_msg
@@ -87,21 +125,23 @@
     else {
       messages_request_body = messages
     }
+    console.log(">>>>>>> messages_request_body.length: ", messages_request_body.length)
     if (messages_request_body.length > 0){
-      try {
-        callAPI('https://example.com/answer', messages_request_body, 'POST')
-          .then((data) => {
-            console.log(data); // JSON data parsed by `data.json()` call
-          }).catch(()=>{});
-      }
-      catch {
-      }
+      callAPI('http://syncMessages.test', messages_request_body, 'POST')
+        .then((data) => {
+          console.log(data); // JSON data parsed by `data.json()` call
+        })
+        .catch((er)=>{console.log('>>>>>>>>>>> Erro: ', er)});
     }
     return 'ok'
   }
 
   const getSelectorOptions = async () => {
-    let selectorOptions = [{text: "option 1", value: "value 1"}, {text: "option 2", value: "value 2"}, {text: "option 3", value: "value 3"}]
+    let selectorOptions = null
+    let response = await callAPI('http://getSelectorOptions.test')
+    if (response){
+      selectorOptions = response.data
+    }
     return selectorOptions
   }
 
@@ -115,7 +155,7 @@
   const addSelector = async (contact, chat) => {
     let selectorExists = document.getElementById("mySelector");
     let selectorOptions = await getSelectorOptions()
-    if (!selectorExists){
+    if (!selectorExists && selectorOptions){
       let mySelector = document.createElement("select");
       mySelector.id = "mySelector"
       mySelector.style.cssText +=';margin-right:15px;'
@@ -149,6 +189,7 @@
   }
 
   const watchChatIsOpen = async () => {
+    console.log(">>>>>>> watchChatIsOpen ........")
     let data = await getChatDataFromDocument()
     if (data){
       let {contact, messages} = data
@@ -160,13 +201,18 @@
         updateChat(contact, chat)
       }
     }
-    await sleep(3000)
+    await sleep(1500)
     watchChatIsOpen()
   }
 
   const whatsAppInitialScript = async () => {
     await paneSideIsMounted()
-    watchChatIsOpen()
+    DEBUG = !('update_url' in chrome.runtime.getManifest())
+    let userAuthenticated = await userIsAuthenticated()
+    if (userAuthenticated){
+      watchChatIsOpen()
+    }
+    else{console.log('>>>>>>>>> userIsAuthenticated failed')}
   }
   whatsAppInitialScript();
 })();
