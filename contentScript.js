@@ -17,15 +17,14 @@
     // else {return false}
   // }
 
-  const getAuthToken = async () => {
-    let token_promise = new Promise(function(resolve, reject){
-      chrome.storage.sync.get('tintim_auth_token', function(data){resolve(data['tintim_auth_token'])})
+  const getAuthData = async () => {
+    let tintim_auth_data = await new Promise(function(resolve, reject){
+      chrome.storage.sync.get('tintim_auth_data', function(data){resolve(data['tintim_auth_data'])})
     });
-    let tintim_auth_token = await token_promise
-    if (!tintim_auth_token){
-      tintim_auth_token = undefined
+    if (!tintim_auth_data){
+      tintim_auth_data = undefined
     }
-    return tintim_auth_token
+    return tintim_auth_data
   }
 
   const paneSideIsMounted = async () => {
@@ -37,46 +36,51 @@
     }
   }
  
-  async function callAPI(url = '', data = {}, method='GET') {
-    let auth_token = await getAuthToken()
-    let response = null
-    if (DEBUG){
-      if (url == 'http://syncMessages.test' && auth_token == 'allowed_token'){
-        return 'Messages synced with success'
+  async function callAPI(url = '', request_body = {}, method='GET') {
+    let data = await getAuthData()
+    if (data){
+      if (DEBUG){
+          let {tintim_username, tintim_auth_token} = data
+          if (tintim_auth_token != 'allowed_token' || tintim_username != 'username'){return undefined}
+          if (url == 'http://syncMessages.test' ){
+            return 'Messages synced with success'
+          }
+          else if (url == 'http://getSelectorOptions.test' ){
+            let data = [{text: "option 1", value: "value 1"}, {text: "option 2", value: "value 2"}, {text: "option 3", value: "value 3"}]
+            return {data: data}
+          }
+          else if (url == 'http://userIsAuthenticated.test' ){
+            return {data: true}
+          }
       }
-      else if (url == 'http://getSelectorOptions.test' && auth_token == 'allowed_token'){
-        let data = [{text: "option 1", value: "value 1"}, {text: "option 2", value: "value 2"}, {text: "option 3", value: "value 3"}]
-        return {data: data}
+      else{
+        let response = await fetch(url, {
+          method: method,
+          mode: 'cors', // no-cors, *cors, same-origin
+          cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+          credentials: 'same-origin', // include, *same-origin, omit
+          headers: {
+            'Content-Type': 'application/json' //'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          redirect: 'follow', // manual, *follow, error
+          referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, etc ...
+          body: JSON.stringify(request_body) // body data type must match "Content-Type" header
+        });
+        return response.json(); // parses JSON response into native JavaScript objects
       }
-      else if (url == 'http://userIsAuthenticated.test' && auth_token == 'allowed_token'){
-        return {data: true}
-      }
-      else { return undefined }
     }
-    else{
-      response = await fetch(url, {
-        method: method,
-        mode: 'cors', // no-cors, *cors, same-origin
-        cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
-        credentials: 'same-origin', // include, *same-origin, omit
-        headers: {
-          'Content-Type': 'application/json' //'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        redirect: 'follow', // manual, *follow, error
-        referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, etc ...
-        body: JSON.stringify(data) // body data type must match "Content-Type" header
-      });
-      return response.json(); // parses JSON response into native JavaScript objects
-    }
+    return undefined
   }
 
   const userIsAuthenticated = async () => {
-    let auth_token = await getAuthToken()
-    if (!auth_token){ return false }
-
-    let response = await callAPI('http://userIsAuthenticated.test')
-    if (response?.data == true){return true}
-    else {return false}
+    let data = await getAuthData()
+    if (data){
+      let {tintim_username, tintim_auth_token} = data
+      if (!tintim_auth_token || !tintim_username){ return false }
+      let response = await callAPI('http://userIsAuthenticated.test')
+      if (response?.data == true){return true}
+    }
+    return false
   }
 
   const parseChatElements = async (elements) => {
@@ -125,7 +129,6 @@
     else {
       messages_request_body = messages
     }
-    console.log(">>>>>>> messages_request_body.length: ", messages_request_body.length)
     if (messages_request_body.length > 0){
       callAPI('http://syncMessages.test', messages_request_body, 'POST')
         .then((data) => {
@@ -146,8 +149,6 @@
   }
 
   const statusSelected = (ev, contact, chat) => {
-    console.log(">>>>>>> statusSelected: ", ev.target.value)
-    console.log(">>>>>>> contact: ", contact)
     chat.selected_status = ev.target.value
     updateChat(contact, chat)
   }

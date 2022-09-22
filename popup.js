@@ -3,8 +3,9 @@ document.addEventListener("DOMContentLoaded", () => {console.log('inside popup.j
 const validateFormOnSubmit = (ev) => {
   // ev.preventDefault()
   let tintim_auth_token = ev.target.elements.tintim_auth_token?.value
-  if (tintim_auth_token)
-  chrome.storage.sync.set({'tintim_auth_token': tintim_auth_token});
+  let tintim_username = ev.target.elements.tintim_username?.value
+  if (tintim_auth_token && tintim_username)
+  chrome.storage.sync.set({'tintim_auth_data': {'tintim_auth_token': tintim_auth_token, 'tintim_username': tintim_username}});
 }
 
 document.getElementById('tintin_login_form').onsubmit = validateFormOnSubmit;
