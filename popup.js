@@ -2,23 +2,23 @@ document.addEventListener("DOMContentLoaded", () => {console.log('inside popup.j
 
 const validateFormOnSubmit = (ev) => {
   // ev.preventDefault()
-  let tintim_auth_token = ev.target.elements.tintim_auth_token?.value
-  let tintim_username = ev.target.elements.tintim_username?.value
-  if (tintim_auth_token && tintim_username)
-  chrome.storage.sync.set({'tintim_auth_data': {'tintim_auth_token': tintim_auth_token, 'tintim_username': tintim_username}});
+  let account_security_code = ev.target.elements.account_security_code?.value
+  let account_code = ev.target.elements.account_code?.value
+  if (account_security_code && account_code)
+  chrome.storage.sync.set({'tintim_auth_data': {'account_security_code': account_security_code, 'account_code': account_code}});
 }
 
 document.getElementById('tintin_login_form').onsubmit = validateFormOnSubmit;
 
 // const getAuthToken = async () => {
   // let token_promise = new Promise(function(resolve, reject){
-    // chrome.storage.sync.get('tintim_auth_token', function(data){resolve(data['tintim_auth_token'])})
+    // chrome.storage.sync.get('account_security_code', function(data){resolve(data['account_security_code'])})
   // });
-  // let tintim_auth_token = await token_promise
-  // if (!tintim_auth_token){
-    // tintim_auth_token = 'tintim_auth_token not found'
+  // let account_security_code = await token_promise
+  // if (!account_security_code){
+    // account_security_code = 'account_security_code not found'
   // }
-  // return tintim_auth_token
+  // return account_security_code
 // }
 
 // const testBTN = async () => {

@@ -1,21 +1,10 @@
-(() => {
+(async () => {
+  const utilsJS = chrome.runtime.getURL("utils.js");
+  const utils = await import(utilsJS);
+  const objectEquals = utils.objectEquals
   let DEBUG = true
 
   const sleep = async (ms)=>{ return new Promise(resolve => setTimeout(resolve, ms)); } 
-
-  // const getAllChatsContactName = async () => {
-    // let all_chats_contact_name = Array.from(document.querySelectorAll('.zoWT4'))  
-    // chats_last_synced_msg.forEach(el=>{console.log(el.querySelector("div._3OvU8 ").innerText)})  // Print innerText
-  // }
-
-  // const hasNewMessage = async () =>{
-    // let stuff = Array.from(document.querySelectorAll('[class="l7jjieqr cfzgl7ar ei5e7seu h0viaqh7 tpmajp1w c0uhu3dl riy2oczp dsh4tgtl sy6s5v3r gz7w46tb lyutrhe2 qfejxiq4 fewfhwl7 ovhn1urg ap18qm3b ikwl5qvt j90th5db aumms1qt"]'))  
-    // if (stuff.length > 0){
-      // console.log(">>>>>>> There are " + stuff.length + " new messages")
-      // return true
-    // }
-    // else {return false}
-  // }
 
   const getAuthData = async () => {
     let tintim_auth_data = await new Promise(function(resolve, reject){
@@ -40,8 +29,8 @@
     let data = await getAuthData()
     if (data){
       if (DEBUG){
-          let {tintim_username, tintim_auth_token} = data
-          if (tintim_auth_token != 'allowed_token' || tintim_username != 'username'){return undefined}
+          let {account_code, account_security_code} = data
+          if (account_security_code != 'allowed_token' || account_code != 'account_code'){return undefined}
           if (url == 'http://syncMessages.test' ){
             return 'Messages synced with success'
           }
@@ -51,6 +40,9 @@
           }
           else if (url == 'http://userIsAuthenticated.test' ){
             return {data: true}
+          }
+          else if (url == 'http://updateLeadStatus.test' ){
+            return {data: 'Status updated'}
           }
       }
       else{
@@ -75,8 +67,8 @@
   const userIsAuthenticated = async () => {
     let data = await getAuthData()
     if (data){
-      let {tintim_username, tintim_auth_token} = data
-      if (!tintim_auth_token || !tintim_username){ return false }
+      let {account_code, account_security_code} = data
+      if (!account_security_code || !account_code){ return false }
       let response = await callAPI('http://userIsAuthenticated.test')
       if (response?.data == true){return true}
     }
@@ -90,11 +82,17 @@
       let copyableText = el.querySelector('[class="copyable-text"]')
       dataPrePlainText = copyableText?.getAttribute('data-pre-plain-text')
       if (dataPrePlainText){
+        let data_id = el.getAttribute('data-id')
+        let splited_data_id = data_id.split('_')
         _splitedDate = dataPrePlainText.split('[')[1].split(']')
         message['date'] = _splitedDate[0].split(',')[1].trim()
         message['hour'] = _splitedDate[0].split(',')[0]
-        message['phone_number'] = _splitedDate[1].trim().split(':')[0]
+        message['contact_name'] = _splitedDate[1].trim().split(':')[0]
         message['text'] = el.innerText.split('\n')[0]
+        message['from_me'] = splited_data_id[0]
+        message['remote'] = splited_data_id[1]
+        message['id'] = splited_data_id[2]
+        message['data_id'] = data_id
         messages.push(message)
       }
     })
@@ -104,24 +102,23 @@
   const getChatDataFromDocument = async () => {
     let current_open_chat_div = document.querySelector('[class="_3xTHG"]')
     if (current_open_chat_div){
-      let contact = current_open_chat_div.querySelector("header").innerText.split('\n')[0]
+      let contact_name = current_open_chat_div.querySelector("header").innerText.split('\n')[0]
       let chat_elements = Array.from(current_open_chat_div.querySelectorAll('div._1-FMR'))
-      if (contact && chat_elements){
+      if (contact_name && chat_elements){
         messages = await parseChatElements(chat_elements)
-        return {contact: contact, messages: messages}
+        return {contact_name: contact_name, messages: messages}
       }
     }
     return null
   }
 
-  const syncMessages = async (contact, messages) => {
+  const syncMessages = async (contact_name, messages) => {
     let messages_request_body = []
-    let chat = await getOrCreateChat(contact)
+    let chat = await getOrCreateChat(contact_name)
     let last_msg = chat.last_synced_msg
     if (last_msg){
       let index_of_last_msg = messages.findIndex(el=>{
-        if (el.date == last_msg.date && el.hour == last_msg.hour && el.phone_number == last_msg.phone_number && 
-          el.text == last_msg.text){return true}
+        if (objectEquals(el, last_msg)){return true}
         else{return false}
       }) 
       messages_request_body = messages.slice(index_of_last_msg + 1)
@@ -148,12 +145,13 @@
     return selectorOptions
   }
 
-  const statusSelected = (ev, contact, chat) => {
+  const statusSelected = (ev, contact_name, chat) => {
     chat.selected_status = ev.target.value
-    updateChat(contact, chat)
+    updateChat(contact_name, chat)
+    callAPI('http://updateLeadStatus.test', {status: ev.target.value}, 'POST')
   }
 
-  const addSelector = async (contact, chat) => {
+  const addSelector = async (contact_name, chat) => {
     let selectorExists = document.getElementById("mySelector");
     let selectorOptions = await getSelectorOptions()
     if (!selectorExists && selectorOptions){
@@ -169,40 +167,40 @@
       })
       let wp_header = document.querySelector('[data-testid="conversation-header"]')
       wp_header.querySelector('[class="_1QVfy _3UaCz"]').insertBefore(mySelector, wp_header.querySelector('[data-testid="search-button"]'));
-      mySelector.addEventListener("change", (ev)=> statusSelected(ev, contact, chat));
+      mySelector.addEventListener("change", (ev)=> statusSelected(ev, contact_name, chat));
     }
   }
 
-  const getOrCreateChat = async (contact) => {
+  const getOrCreateChat = async (contact_name) => {
     let chat_promise = new Promise(function(resolve, reject){
-      chrome.storage.sync.get(contact, function(data){resolve(data[contact])})
+      chrome.storage.sync.get(contact_name, function(data){resolve(data[contact_name])})
     });
     let chat = await chat_promise
     if (!chat){
       chat = {last_synced_msg: null, selected_status: null}
-      chrome.storage.sync.set({[contact]: chat});
+      chrome.storage.sync.set({[contact_name]: chat});
     }
     return chat
   }
 
-  const updateChat = async (contact, chat) => {
-    chrome.storage.sync.set({[contact]: chat});
+  const updateChat = async (contact_name, chat) => {
+    chrome.storage.sync.set({[contact_name]: chat});
   }
 
   const watchChatIsOpen = async () => {
     console.log(">>>>>>> watchChatIsOpen ........")
     let data = await getChatDataFromDocument()
     if (data){
-      let {contact, messages} = data
-      let chat = await getOrCreateChat(contact)
-      addSelector(contact, chat)
-      let sync_response = await syncMessages(contact, messages)
+      let {contact_name, messages} = data
+      let chat = await getOrCreateChat(contact_name)
+      addSelector(contact_name, chat)
+      let sync_response = await syncMessages(contact_name, messages)
       if (sync_response == 'ok'){
         chat.last_synced_msg = messages.slice(-1)[0]
-        updateChat(contact, chat)
+        updateChat(contact_name, chat)
       }
     }
-    await sleep(1500)
+    await sleep(5000)
     watchChatIsOpen()
   }
 

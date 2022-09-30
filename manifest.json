@@ -22,6 +22,12 @@
           "assets/img/icon.png"
         ],
         "matches": ["https://*.web.whatsapp.com/*"]
+      },
+      {
+        "resources": [
+          "utils.js"
+        ],
+        "matches": ["https://*.web.whatsapp.com/*"]
       }
     ],
     "action": {
